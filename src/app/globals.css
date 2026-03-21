@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import "tailwindcss";
+@import "mapbox-gl/dist/mapbox-gl.css";
+
+@theme {
+  --color-electric-cyan: #00F0FF;
+  --color-obsidian: #0a0a0a;
+  --color-slate-grey: #4a4a5a;
+  --color-muted-purple: #2a2a35;
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-glass-bg: rgba(0, 0, 0, 0.6);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  --animate-pulse-pixel: pulsePixel 1s steps(4, end) infinite;
+}
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, sans-serif;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Mapbox specific overrides for retro pixel aesthetic */
+#main-map, .mapboxgl-canvas {
+  image-rendering: pixelated !important;
+  filter: saturate(1.4) contrast(1.3) brightness(1.25) sepia(0.1) hue-rotate(-5deg) !important;
+}
+
+.pixel-pulse {
+  width: 14px;
+  height: 14px;
+  background-color: var(--color-electric-cyan);
+  box-shadow: none;
+  border: 1px solid #0a0a0a;
+  border-radius: 0; /* Strict blocky pixels */
+  animation: pulsePixel 1s steps(2, end) infinite; /* stilted blocky animation */
+  mix-blend-mode: normal;
+  cursor: pointer;
+  pointer-events: auto !important;
+  transition: transform 0.1s;
+}
+
+.pixel-pulse:hover {
+  transform: scale(1.5) !important;
+  z-index: 1000;
+  border-color: #fff;
+}
+
+.pixel-pulse.low-match {
+  opacity: 0.2;
+  animation: none;
+  background-color: #555;
+  box-shadow: none;
+}
+
+@keyframes pulsePixel {
+  0% { transform: scale(0.8); }
+  25% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  75% { transform: scale(1); }
+  100% { transform: scale(0.8); }
+}
+
+.scanlines {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.05) 50%,
+    transparent 50%
+  );
+  background-size: 100% 4px;
+  opacity: 0.15;
+}
+
+.glass-panel {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background-color: var(--color-glass-bg);
+  border: 1px solid var(--color-glass-border);
+}
+
+.rpg-font {
+  font-family: 'Press Start 2P', cursive;
+  line-height: 1.8;
+  letter-spacing: 0.05em;
+  font-size: 8px; /* Small for retro feel */
+}
+
+/* Classic SNES/Square Enix Dialogue Box */
+.rpg-box {
+  background: linear-gradient(180deg, #00125a 0%, #000a3d 100%);
+  border: 4px solid #ffffff;
+  box-shadow: 0 0 0 2px #d4af37, /* outer gold */
+              0 0 15px rgba(0, 0, 0, 0.8), /* shadow */
+              inset 0 0 0 1px #000000; /* inner highlight */
+  border-radius: 4px;
+}
+
+.typewriter-cursor::after {
+  content: "█";
+  animation: blink 0.8s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.map-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  background-image: 
+    linear-gradient(to right, rgba(0, 240, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center;
+}
