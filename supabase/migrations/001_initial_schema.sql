@@ -20,21 +20,19 @@ create table if not exists live_events (
 );
 
 -- 3. Embeddings table (separate so we can join on demand)
+-- gemini-embedding-001 outputs 3072 dimensions; ivfflat caps at 2000 so no vector index here
 create table if not exists event_embeddings (
   id        bigserial primary key,
   event_id  bigint references live_events(id) on delete cascade,
-  embedding vector(768),
+  embedding vector(3072),
   created_at timestamptz default now()
 );
 
 create index if not exists event_embeddings_event_id_idx on event_embeddings(event_id);
-create index if not exists event_embeddings_embedding_idx
-  on event_embeddings using ivfflat (embedding vector_cosine_ops)
-  with (lists = 100);
 
 -- 4. Vector similarity search function used by /api/chat and /api/ingest
 create or replace function match_events(
-  query_embedding vector(768),
+  query_embedding vector(3072),
   match_threshold float,
   match_count     int,
   search_time     timestamptz default now()
