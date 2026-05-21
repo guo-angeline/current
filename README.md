@@ -4,7 +4,7 @@ Describe a vibe. Get real-time events near you on a cyber-noir map.
 
 CURRENT is an AI-powered app that takes a natural-language mood description ("cozy jazz night," "high energy dance," "chill outdoor hang") and matches it to live events in San Francisco using vector similarity search, then renders them on a dark retro-styled map.
 
-**[Try it live →](https://github.com/guo-angeline/current)**
+**[Try it live →](https://current-app-pi.vercel.app)**
 
 ## How It Works
 
@@ -64,7 +64,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Ingest Events
 
-POST to `/api/ingest` to pull events from configured sources, extract structured data via AI, embed, and store in Supabase.
+GET `/api/ingest` to pull events from configured sources, extract structured data via AI, deduplicate (exact URL → fuzzy title → semantic vector), embed, and store in Supabase.
 
 ## Project Structure
 
