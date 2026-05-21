@@ -31,6 +31,7 @@ create table if not exists event_embeddings (
 create index if not exists event_embeddings_event_id_idx on event_embeddings(event_id);
 
 -- 4. Vector similarity search function used by /api/chat and /api/ingest
+drop function if exists match_events(vector, float, int, timestamptz);
 create or replace function match_events(
   query_embedding vector(3072),
   match_threshold float,
