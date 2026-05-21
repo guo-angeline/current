@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import MapComponent from "@/components/Map";
+import dynamic from "next/dynamic";
+const MapComponent = dynamic(() => import("@/components/Map"), { ssr: false });
 import { Activity } from "lucide-react";
 import { useChat } from "ai/react";
 import TypewriterText from "@/components/TypewriterText";
@@ -10,43 +11,46 @@ export default function Home() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, append } = useChat();
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [requestLoc, setRequestLoc] = useState<number>(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Extract the latest updated map events from the tool invocations
   const activeEvents = useMemo(() => {
-    // Default initial pulses representing general popularity
-    let events: any[] = [];
-
+    // We only care about the latest assistant interaction to define the current map state.
+    // If we're in a new turn (User message is latest, or Assistant is still thinking),
+    // we clear the old "incorrect" session events.
     for (let i = messages.length - 1; i >= 0; i--) {
        const m = messages[i];
-       if (m.toolInvocations) {
-         // Handle standard map updates
-         const updateMapTool = m.toolInvocations.find(t => t.toolName === 'update_map' && ('result' in t));
-         if (updateMapTool && 'result' in updateMapTool) {
-           const aiResults = (updateMapTool as any).result.enriched_events;
-           
-           const combined = [...events];
-           for (const ai of aiResults) {
-              const existingIndex = combined.findIndex(b => b.id === ai.id);
-              if (existingIndex >= 0) {
-                  combined[existingIndex] = { ...combined[existingIndex], ...ai };
-              } else {
-                  combined.push({ ...ai, popularity: ai.base_popularity || 50 });
-              }
+       if (m.role === 'assistant') {
+         if (m.toolInvocations) {
+           const updateMapTool = m.toolInvocations.find(t => t.toolName === 'update_map' && ('result' in t));
+           if (updateMapTool && 'result' in updateMapTool) {
+             const aiResults = (updateMapTool as any).result.enriched_events;
+             
+             return aiResults.map((ai: any) => ({
+                ...ai,
+                popularity: ai.base_popularity || 50
+             }));
            }
-           
-           events = combined.map(e => {
-             const isIncluded = aiResults.some((ai: any) => ai.id === e.id);
-             return isIncluded ? e : { ...e, match_score: -1 };
-           });
-           break;
          }
+         // Found latest assistant message but it's still being generated or tool results are pending
+         return [];
+       }
+       
+       // If we encounter a user message and haven't found a following assistant message yet,
+       // it means we've just started a new search query.
+       if (m.role === 'user' && i === messages.length - 1) {
+         return [];
        }
     }
-    return events;
+    return [];
   }, [messages]);
 
   useEffect(() => {
-     const bestMatch = activeEvents.slice().sort((a,b) => (b.match_score || 0) - (a.match_score || 0))[0];
+     const bestMatch = activeEvents.slice().sort((a: any, b: any) => (b.match_score || 0) - (a.match_score || 0))[0];
      if (bestMatch && bestMatch.match_score && bestMatch.match_score > 0) {
         setSelectedEventId(bestMatch.id);
      }
@@ -62,7 +66,7 @@ export default function Home() {
     setTimeout(() => { e.target.innerText = "COPY ADDRESS"; }, 2000);
   };
 
-  const selectedEvent = activeEvents.find(e => e.id === selectedEventId);
+  const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
 
   return (
     <main className="relative flex flex-col h-screen w-full overflow-hidden bg-black">
@@ -145,7 +149,9 @@ export default function Home() {
         )}
 
         <form onSubmit={handleSubmit} className="rpg-box flex items-center p-3 relative overflow-hidden pointer-events-auto">
-          {isLoading && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />}
+          {mounted && isLoading && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]" />
+          )}
 
           <input
             type="text"
@@ -157,7 +163,7 @@ export default function Home() {
           />
           
           <button type="submit" disabled={isLoading} className="z-10 bg-[#00F0FF] text-black px-4 py-2 rpg-font text-[8px] font-bold hover:bg-white transition-colors disabled:opacity-50 shadow-[2px_2px_0_rgba(0,0,0,1)]">
-            {isLoading ? "..." : "SCAN"}
+            {mounted && isLoading ? "..." : "SCAN"}
           </button>
         </form>
         
@@ -165,7 +171,7 @@ export default function Home() {
         {!selectedEvent && (
           <div className="flex justify-between items-start mt-4 px-3 w-full gap-4">
             <p className="rpg-font text-[6px] text-[#00F0FF]/80 uppercase tracking-tight animate-pulse flex-1 leading-normal">
-              {systemMessage}
+              {mounted ? systemMessage : "INITIALIZING SYSTEMS..."}
             </p>
             <p className="rpg-font text-[6px] text-white/30 uppercase tracking-widest text-right whitespace-nowrap">
               SEC 7

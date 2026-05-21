@@ -162,14 +162,65 @@ export async function GET(req: Request) {
 
         // 4. DATABASE INGESTION & VECTOR MAPPING
         for (const aiEvent of parsedData.events) {
-            console.log("Vectorizing and saving event...", aiEvent.title);
+            console.log("Analyzing and deduplicating:", aiEvent.title);
             
+            // 1. EXACT URL MATCH (Highest confidence)
+            const { data: urlMatches } = await supabase
+                .from('live_events')
+                .select('id')
+                .eq('source_url', aiEvent.source_url)
+                .limit(1);
+            
+            if (urlMatches && urlMatches.length > 0) {
+                console.log("Skipping duplicate (Exact Source URL):", aiEvent.source_url);
+                continue;
+            }
+
+            // 2. FUZZY TITLE + TEMPORAL CHECK (Keyword Overlap)
+            const sanitize = (text: string) => text.toLowerCase().replace(/sf|san francisco|fest|festival|event|tonight|today|run|race|conference/g, '').split(/\W+/).filter(w => w.length > 2);
+            const newKeywords = sanitize(aiEvent.title);
+
+            const { data: potentialTemporalMatches } = await supabase
+                .from('live_events')
+                .select('id, title, start_time')
+                .gte('start_time', new Date(new Date(aiEvent.start_time).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString())
+                .lte('start_time', new Date(new Date(aiEvent.start_time).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString());
+
+            let isFuzzyMatch = false;
+            if (potentialTemporalMatches) {
+                for (const match of potentialTemporalMatches) {
+                    const existingKeywords = sanitize(match.title);
+                    const overlap = newKeywords.filter(w => existingKeywords.includes(w)).length;
+                    const similarity = Math.max(overlap / newKeywords.length, overlap / existingKeywords.length);
+                    
+                    if (similarity >= 0.7) {
+                        console.log(`Skipping fuzzy duplicate: "${aiEvent.title}" matches "${match.title}" (Score: ${similarity})`);
+                        isFuzzyMatch = true;
+                        break;
+                    }
+                }
+            }
+            if (isFuzzyMatch) continue;
+
+            // 3. SEMANTIC VECTOR CHECK (Safety Net)
             const { embedding } = await embed({
                 model: googleProvider.textEmbeddingModel('gemini-embedding-001'),
                 value: `${aiEvent.title} - ${aiEvent.summary}`,
             });
 
-            // Upsert Postgres Core
+            const { data: vectorMatches } = await supabase.rpc('match_events', {
+                query_embedding: embedding,
+                match_threshold: 0.8,
+                match_count: 1,
+                search_time: aiEvent.start_time
+            });
+
+            if (vectorMatches && vectorMatches.length > 0) {
+                console.log("Skipping semantic duplicate:", aiEvent.title, "resembles", vectorMatches[0].title);
+                continue;
+            }
+
+            // 4. Persistence
             const { data: eventData, error: eventError } = await supabase
                 .from('live_events')
                 .insert([{
