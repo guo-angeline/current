@@ -76,15 +76,19 @@ export async function POST(req: Request) {
 
     const lastUserMessage = messages.slice().reverse().find((m: any) => m.role === 'user')?.content || "event";
     const liveDynamicDB = await getLiveEvents(lastUserMessage);
+    const hasEvents = liveDynamicDB.length > 0;
 
     const result = await streamText({
-      model: googleProvider('gemini-2.5-flash'), // Upgraded from 1.5 flash that was restricting
+      model: googleProvider('gemini-2.5-flash'),
       messages,
-      system: "You are the CURRENT Live Urban Pulse Agent for San Francisco. Analyze user messages! \n\n" +
-              "1. Search the available live events.\n" +
-              "2. For vibe-requests: Call `update_map` to supply 1 to 3 matching events (NEVER 0), assigning each a mood `match_score` (0-100) and a short 'Insight'.\n" +
-              "3. Return a cyber-noir 1-sentence response like a system terminal HUD.\n\nAVAILABLE EVENTS DATABASE:\n" + JSON.stringify(liveDynamicDB, null, 2),
-      tools: {
+      system: hasEvents
+        ? "You are the CURRENT Live Urban Pulse Agent for San Francisco. Analyze user messages!\n\n" +
+          "1. Search the available live events.\n" +
+          "2. For vibe-requests: Call `update_map` to supply 1 to 3 matching events (NEVER 0), assigning each a mood `match_score` (0-100) and a short 'Insight'.\n" +
+          "3. Return a cyber-noir 1-sentence response like a system terminal HUD.\n\nAVAILABLE EVENTS DATABASE:\n" + JSON.stringify(liveDynamicDB, null, 2)
+        : "You are the CURRENT Live Urban Pulse Agent for San Francisco. The live event database is offline or empty. " +
+          "Respond with exactly one line: 'SIGNAL LOST — live event feed offline. Hit /api/ingest to reload.' Do not invent or reference any events.",
+      tools: hasEvents ? {
         update_map: tool({
           description: 'Update the map HUD with exactly the events matching the vibe search. You MUST cross-reference their start/end times with the current system time to explicitly flag event temporal logic.',
           parameters: z.object({
@@ -104,7 +108,7 @@ export async function POST(req: Request) {
             return { enriched_events: enrichedEvents };
           },
         })
-      },
+      } : {},
     });
 
     // @ts-ignore
