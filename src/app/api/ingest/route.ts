@@ -18,6 +18,13 @@ export async function GET(req: Request) {
 
     try {
         let ingested = 0;
+
+        // Delete events that ended more than 2 hours ago so they can be re-ingested fresh
+        await supabase
+            .from('live_events')
+            .delete()
+            .lt('end_time', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
+
         console.log("Production Ingestion: Pulling live global streams...");
 
         let rawSocialFeeds: { title: string, text: string, category: string, source_url: string, location_context?: string }[] = [];
@@ -159,6 +166,17 @@ export async function GET(req: Request) {
             }),
             prompt: `Literal current system UTC time: ${new Date().toISOString()}. \nAnalyze these live raw internet fragments from San Francisco: \n\n${JSON.stringify(rawSocialFeeds, null, 2)}\n\nExtract and map them logically into concrete Spatio-Temporal objects. Use any 'location_context', 'hashtags', or 'location_name' provided as the HIGHEST priority signals for determining the exact Latitude/Longitude.`
         });
+
+        // Assign unique per-event URLs when multiple events share a listing page URL
+        // (e.g. lu.ma/sf or eventbrite.com/.../events--tonight/) to prevent false dedup
+        const urlCounts: Record<string, number> = {};
+        for (const e of parsedData.events) urlCounts[e.source_url] = (urlCounts[e.source_url] || 0) + 1;
+        for (const e of parsedData.events) {
+            if (urlCounts[e.source_url] > 1) {
+                const slug = e.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                e.source_url = `${e.source_url}#${slug}`;
+            }
+        }
 
         // 4. DATABASE INGESTION & VECTOR MAPPING
         for (const aiEvent of parsedData.events) {
