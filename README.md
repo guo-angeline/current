@@ -53,6 +53,15 @@ PREDICTHQ_CLIENT_TOKEN=           # PredictHQ API token (optional, for ingest)
 SOCIAVAULT_API_KEY=               # SociaVault API key (optional, for ingest)
 ```
 
+### Database Setup
+
+In the Supabase SQL editor, run `supabase/migrations/001_initial_schema.sql`. This creates:
+- `live_events` table
+- `event_embeddings` table with `vector(3072)` columns (gemini-embedding-001 output size)
+- `match_events()` RPC for cosine similarity search
+
+> **Note:** Supabase free-tier projects pause after ~1 week of inactivity. If your deployment returns `SIGNAL LOST`, resume the project from the Supabase dashboard — DNS takes a minute to propagate after resume.
+
 ### Install & Run
 
 ```bash
@@ -64,7 +73,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Ingest Events
 
-GET `/api/ingest` to pull events from configured sources, extract structured data via AI, deduplicate (exact URL → fuzzy title → semantic vector), embed, and store in Supabase.
+`GET /api/ingest` scrapes configured sources, extracts structured events via Gemini, runs 3-tier deduplication (exact URL → fuzzy title+temporal → semantic vector), embeds with `gemini-embedding-001`, and stores in Supabase. Expired events (ended 2h+ ago) are auto-cleaned on each run so sources can re-populate fresh.
 
 ## Project Structure
 
@@ -78,6 +87,9 @@ src/
 ├── components/
 │   ├── Map.tsx               # Mapbox map with markers, fog-of-war, flyTo
 │   └── TypewriterText.tsx    # Typewriter animation component
+supabase/
+└── migrations/
+    └── 001_initial_schema.sql  # live_events, event_embeddings, match_events()
 ```
 
 ## License
